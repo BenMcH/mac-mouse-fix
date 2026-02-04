@@ -24,6 +24,14 @@ static double _cumulativeY;
 static BOOL _trackEventFired;  // Tracks whether media track event (left/right) was fired
 static double _lastVolumeEventY; // Track position of last volume event
 
+/// Lock the gesture to either horizontal (track) or vertical (volume) mode
+typedef enum {
+    kGestureModeUndetermined,
+    kGestureModeHorizontal,  // Locked to track control
+    kGestureModeVertical     // Locked to volume control
+} GestureMode;
+static GestureMode _gestureMode;
+
 /// Threshold for triggering a media control event (in pixels)
 static const double kMediaControlThreshold = 50.0;
 
@@ -38,6 +46,7 @@ static const double kVolumeRepeatThreshold = 30.0;
     _cumulativeY = 0.0;
     _trackEventFired = NO;
     _lastVolumeEventY = 0.0;
+    _gestureMode = kGestureModeUndetermined;
 }
 
 + (void)handleBecameInUse {
@@ -46,6 +55,7 @@ static const double kVolumeRepeatThreshold = 30.0;
     _cumulativeY = 0.0;
     _trackEventFired = NO;
     _lastVolumeEventY = 0.0;
+    _gestureMode = kGestureModeUndetermined;
 }
 
 + (void)handleMouseInputWhileInUseWithDeltaX:(double)deltaX deltaY:(double)deltaY event:(CGEventRef)event {
@@ -62,11 +72,16 @@ static const double kVolumeRepeatThreshold = 30.0;
         return;
     }
     
-    // Determine dominant direction and fire appropriate event
-    MFSystemDefinedEventType eventType;
-    BOOL isHorizontal = (absX > absY);
+    // Determine and lock gesture mode on first threshold crossing
+    if (_gestureMode == kGestureModeUndetermined) {
+        // Lock to whichever direction is dominant when threshold is first crossed
+        _gestureMode = (absX > absY) ? kGestureModeHorizontal : kGestureModeVertical;
+    }
     
-    if (isHorizontal) {
+    // Execute action based on locked gesture mode
+    MFSystemDefinedEventType eventType;
+    
+    if (_gestureMode == kGestureModeHorizontal) {
         // Horizontal gesture - Media track control (one-shot)
         // Only fire event once per drag gesture for track changes
         if (_trackEventFired) {
@@ -83,7 +98,7 @@ static const double kVolumeRepeatThreshold = 30.0;
         [self postSystemDefinedEvent:eventType withModifierFlags:0];
         _trackEventFired = YES;
         
-    } else {
+    } else if (_gestureMode == kGestureModeVertical) {
         // Vertical gesture - Volume control (continuous)
         // Allow repeated volume events as user continues dragging
         
@@ -112,6 +127,7 @@ static const double kVolumeRepeatThreshold = 30.0;
     _cumulativeY = 0.0;
     _trackEventFired = NO;
     _lastVolumeEventY = 0.0;
+    _gestureMode = kGestureModeUndetermined;
 }
 
 + (void)suspend {
