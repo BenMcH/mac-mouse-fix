@@ -21,10 +21,15 @@
 static ModifiedDragState *_drag;
 static double _cumulativeX;
 static double _cumulativeY;
-static BOOL _eventFired;
+static BOOL _trackEventFired;  // Tracks whether media track event (left/right) was fired
+static double _lastVolumeEventX; // Track position of last volume event
+static double _lastVolumeEventY; // Track position of last volume event
 
 /// Threshold for triggering a media control event (in pixels)
 static const double kMediaControlThreshold = 50.0;
+
+/// Threshold for triggering additional volume events (in pixels)
+static const double kVolumeRepeatThreshold = 30.0;
 
 /// Interface
 
@@ -32,14 +37,18 @@ static const double kMediaControlThreshold = 50.0;
     _drag = dragStateRef;
     _cumulativeX = 0.0;
     _cumulativeY = 0.0;
-    _eventFired = NO;
+    _trackEventFired = NO;
+    _lastVolumeEventX = 0.0;
+    _lastVolumeEventY = 0.0;
 }
 
 + (void)handleBecameInUse {
     // Reset state when drag becomes active
     _cumulativeX = 0.0;
     _cumulativeY = 0.0;
-    _eventFired = NO;
+    _trackEventFired = NO;
+    _lastVolumeEventX = 0.0;
+    _lastVolumeEventY = 0.0;
 }
 
 + (void)handleMouseInputWhileInUseWithDeltaX:(double)deltaX deltaY:(double)deltaY event:(CGEventRef)event {
@@ -47,11 +56,6 @@ static const double kMediaControlThreshold = 50.0;
     // Accumulate movement
     _cumulativeX += deltaX;
     _cumulativeY += deltaY;
-    
-    // Only fire event once per drag gesture
-    if (_eventFired) {
-        return;
-    }
     
     // Check if threshold is crossed
     double absX = fabs(_cumulativeX);
@@ -63,33 +67,55 @@ static const double kMediaControlThreshold = 50.0;
     
     // Determine dominant direction and fire appropriate event
     MFSystemDefinedEventType eventType;
+    BOOL isHorizontal = (absX > absY);
     
-    if (absX > absY) {
-        // Horizontal gesture
+    if (isHorizontal) {
+        // Horizontal gesture - Media track control (one-shot)
+        // Only fire event once per drag gesture for track changes
+        if (_trackEventFired) {
+            return;
+        }
+        
         if (_cumulativeX > 0) {
             eventType = kMFSystemEventTypeMediaForward; // Right = Next track
         } else {
             eventType = kMFSystemEventTypeMediaBack;    // Left = Previous track
         }
+        
+        // Post the system event
+        [self postSystemDefinedEvent:eventType withModifierFlags:0];
+        _trackEventFired = YES;
+        
     } else {
-        // Vertical gesture
-        if (_cumulativeY > 0) {
-            eventType = kMFSystemEventTypeVolumeDown;   // Down = Volume down (positive Y is down)
-        } else {
-            eventType = kMFSystemEventTypeVolumeUp;     // Up = Volume up (negative Y is up)
+        // Vertical gesture - Volume control (continuous)
+        // Allow repeated volume events as user continues dragging
+        
+        // Calculate distance traveled since last volume event
+        double distanceSinceLastEvent = fabs(_cumulativeY - _lastVolumeEventY);
+        
+        if (distanceSinceLastEvent >= kVolumeRepeatThreshold) {
+            if (_cumulativeY > 0) {
+                eventType = kMFSystemEventTypeVolumeDown;   // Down = Volume down (positive Y is down)
+            } else {
+                eventType = kMFSystemEventTypeVolumeUp;     // Up = Volume up (negative Y is up)
+            }
+            
+            // Post the system event
+            [self postSystemDefinedEvent:eventType withModifierFlags:0];
+            
+            // Update last event position
+            _lastVolumeEventY = _cumulativeY;
         }
     }
-    
-    // Post the system event
-    [self postSystemDefinedEvent:eventType withModifierFlags:0];
-    _eventFired = YES;
 }
 
 + (void)handleDeactivationWhileInUseWithCancel:(BOOL)cancelation {
     // Reset state when drag ends
     _cumulativeX = 0.0;
     _cumulativeY = 0.0;
-    _eventFired = NO;
+    _trackEventFired = NO;
+    _lastVolumeEventX = 0.0;
+    _lastVolumeEventY = 0.0;
 }
 
 + (void)suspend {
