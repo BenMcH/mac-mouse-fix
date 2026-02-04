@@ -22,7 +22,6 @@ static ModifiedDragState *_drag;
 static double _cumulativeX;
 static double _cumulativeY;
 static BOOL _trackEventFired;  // Tracks whether media track event (left/right) was fired
-static double _lastVolumeEventX; // Track position of last volume event
 static double _lastVolumeEventY; // Track position of last volume event
 
 /// Threshold for triggering a media control event (in pixels)
@@ -38,7 +37,6 @@ static const double kVolumeRepeatThreshold = 30.0;
     _cumulativeX = 0.0;
     _cumulativeY = 0.0;
     _trackEventFired = NO;
-    _lastVolumeEventX = 0.0;
     _lastVolumeEventY = 0.0;
 }
 
@@ -47,7 +45,6 @@ static const double kVolumeRepeatThreshold = 30.0;
     _cumulativeX = 0.0;
     _cumulativeY = 0.0;
     _trackEventFired = NO;
-    _lastVolumeEventX = 0.0;
     _lastVolumeEventY = 0.0;
 }
 
@@ -114,7 +111,6 @@ static const double kVolumeRepeatThreshold = 30.0;
     _cumulativeX = 0.0;
     _cumulativeY = 0.0;
     _trackEventFired = NO;
-    _lastVolumeEventX = 0.0;
     _lastVolumeEventY = 0.0;
 }
 
